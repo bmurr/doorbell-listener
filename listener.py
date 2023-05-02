@@ -43,6 +43,7 @@ class ONVIFEventRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/test/visitor":
             self.handle_visitor_event(datetime.datetime.now())
             self.send_response(HTTPStatus.OK)
+            self.wfile.write("".encode("utf-8"))
 
     def do_POST(self):
         if "application/soap+xml" in self.headers.get("Content-Type"):
