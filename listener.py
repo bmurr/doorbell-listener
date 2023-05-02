@@ -121,14 +121,20 @@ class ONVIFEventRequestHandler(BaseHTTPRequestHandler):
             logger.info(etree.tounicode(etree.fromstring(post_body), pretty_print=True))
 
 
-def get_local_ip():
+def get_local_ip(interface="en0"):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(0)
     try:
         s.connect(("255.255.255.255", 1))
         ip = s.getsockname()[0]
     except Exception:
-        ip = "127.0.0.1"
+        result = subprocess.run(
+            "ifconfig %s| grep 'inet ' | awk '{print $2}'" % interface,
+            shell=True,
+            check=True,
+            capture_output=True,
+        )
+        return result.stdout.strip().decode("utf-8")
     finally:
         s.close()
     return ip
@@ -142,7 +148,7 @@ def run_listen_server(listen_port=0):
     server_thread = Thread(target=httpd.serve_forever, name="http_server", daemon=True)
     server_thread.start()
 
-    local_ip = get_local_ip()
+    local_ip = get_local_ip(interface=getattr(config, "interface", "wlan0"))
     listener_address = f"http://{local_ip}:{listen_port}"
     logger.info(f"Listening for events at {listener_address}.")
 
