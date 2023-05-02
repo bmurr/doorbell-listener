@@ -40,7 +40,7 @@ already_seen_events = set()
 
 class ONVIFEventRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == '/test/visitor':
+        if self.path == "/test/visitor":
             self.handle_visitor_event(datetime.datetime.now())
             self.send_response(HTTPStatus.OK)
 
@@ -53,18 +53,30 @@ class ONVIFEventRequestHandler(BaseHTTPRequestHandler):
         # This event is sent when the doorbell is pressed.
         if True or (datetime.datetime.now() - timestamp).total_seconds() <= 5:
             image_data = take_snapshot(
-                ONVIF_SERVICE_URL, username=config.username, password=config.password
+                ONVIF_SERVICE_URL,
+                username=config.username,
+                password=config.password,
+                outfile=config.snapshot_path,
             )
-            image_as_b64 = base64.b64encode(image_data).decode('utf-8')
 
-            am_args = ["am", "broadcast", "--user", "0", "-a", "net.dinglish.tasker.DoorbellVisitor", "-e", "image", f'"{image_as_b64}"']
+            am_args = [
+                "am",
+                "broadcast",
+                "--user",
+                "0",
+                "-a",
+                "net.dinglish.tasker.DoorbellVisitor",
+            ]
             try:
                 subprocess.run(am_args, check=True, capture_output=True)
             except FileNotFoundError:
-                logger.warning("Tried to broadcast an intent, but couldn't find a executable named 'am' on this device.")
+                logger.warning(
+                    "Tried to broadcast an intent, but couldn't find a executable named 'am' on this device."
+                )
             except subprocess.CalledProcessError as e:
-                logger.warning("Tried to broadcast an intent, but am did not run sucessfully.")
-
+                logger.warning(
+                    "Tried to broadcast an intent, but am did not run sucessfully."
+                )
 
     def handle_motion_event(self, timestamp):
         pass
@@ -106,7 +118,6 @@ class ONVIFEventRequestHandler(BaseHTTPRequestHandler):
                         self.handle_motion_event(message_time.replace(tzinfo=None))
         else:
             logger.info(etree.tounicode(etree.fromstring(post_body), pretty_print=True))
-
 
 
 def get_local_ip():
