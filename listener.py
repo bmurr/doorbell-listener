@@ -51,7 +51,7 @@ class ONVIFEventRequestHandler(BaseHTTPRequestHandler):
 
     def handle_visitor_event(self, timestamp):
         # This event is sent when the doorbell is pressed.
-        if True or (datetime.datetime.now() - timestamp).total_seconds() <= 5:
+        if (datetime.datetime.utcnow() - timestamp).total_seconds() <= 5:
             image_data = take_snapshot(
                 ONVIF_SERVICE_URL,
                 username=config.username,
@@ -199,31 +199,36 @@ def subscribe(
     except Exception as e:
         raise
     else:
-        event_client = Client(
-            pathlib.Path(WSDL_LOCATION).joinpath("wsdl/events.wsdl").as_posix(),
-            wsse=UsernameToken(username, password, use_digest=True),
-        )
-        notification_producer_service = event_client.create_service(
-            "{http://www.onvif.org/ver10/events/wsdl}NotificationProducerBinding",
-            onvif_service_url,
-        )
-
-        logger.info(
-            f"Requesting event subscription for {subscription_duration} from ONVIF service at {onvif_service_url}."
-        )
-        response = notification_producer_service.Subscribe(
-            ConsumerReference={"Address": f"{CONSUMER_ADDRESS}"},
-            InitialTerminationTime=f"PT{subscription_duration}",
-        )
-
-        if response:
-            logger.info(
-                f"Got response from ONVIF service. Subscription will expire at {response.TerminationTime.astimezone()}."
+        while True:
+            event_client = Client(
+                pathlib.Path(WSDL_LOCATION).joinpath("wsdl/events.wsdl").as_posix(),
+                wsse=UsernameToken(username, password, use_digest=True),
+            )
+            notification_producer_service = event_client.create_service(
+                "{http://www.onvif.org/ver10/events/wsdl}NotificationProducerBinding",
+                onvif_service_url,
             )
 
-    while True:
-        # Check here if our subscription could have lapsed and resubscribe if it has
-        time.sleep(60)
+            logger.info(
+                f"Requesting event subscription for {subscription_duration} from ONVIF service at {onvif_service_url}."
+            )
+            response = notification_producer_service.Subscribe(
+                ConsumerReference={"Address": f"{CONSUMER_ADDRESS}"},
+                InitialTerminationTime=f"PT{subscription_duration}",
+            )
+
+            if response:
+                logger.info(
+                    f"Got response from ONVIF service. Subscription will expire at {response.TerminationTime.astimezone()}."
+                )
+            sleep_seconds = (
+                response.TerminationTime.replace(tzinfo=None)
+                - datetime.datetime.utcnow()
+            )
+            logger.info(
+                f"Sleeping for {sleep_seconds.total_seconds()} seconds, until {(datetime.datetime.utcnow() + sleep_seconds).astimezone()}"
+            )
+            time.sleep(sleep_seconds.total_seconds())
 
 
 if __name__ == "__main__":
@@ -268,7 +273,7 @@ if __name__ == "__main__":
             username=config.username,
             password=config.password,
             listen_port=getattr(config, "listen_port", 9090),
-            subscription_duration="0H5M1S",
+            subscription_duration=config.subscription_duration,
         )
     except (KeyboardInterrupt, SystemExit):
         handle_exit()
